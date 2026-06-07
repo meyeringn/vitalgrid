@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VitalGrid — Power Outage Vulnerability Index</title>
+  <meta name="description" content="Mapping where power outages intersect with medical device dependency across Philadelphia neighborhoods." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Mono:wght@400;500&family=Epilogue:wght@400;600;700;800&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─── DESIGN TOKENS ──────────────────────────────────────── */
+    :root {
+      --night:      #0d1117;
+      --surface:    #161b24;
+      --raised:     #1c2333;
+      --border:     #2a3444;
+      --border-hi:  #3a4d66;
+      --amber:      #f0a500;
+      --amber-lo:   rgba(240,165,0,0.12);
+      --red:        #e05252;
+      --red-lo:     rgba(224,82,82,0.12);
+      --blue:       #4aa8d8;
+      --blue-lo:    rgba(74,168,216,0.1);
+      --green:      #3db87a;
+      --green-lo:   rgba(61,184,122,0.1);
+      --text:       #c9d5e3;
+      --muted:      #5a7090;
+      --ink:        #e8f0f8;
+      --risk-low:      #3db87a;
+      --risk-moderate: #f0a500;
+      --risk-high:     #e05252;
+      --risk-critical: #b83232;
+      --font-head:  'Instrument Serif', serif;
+      --font-body:  'Epilogue', sans-serif;
+      --font-mono:  'DM Mono', monospace;
+      --radius:     12px;
+      --shadow:     0 4px 24px rgba(0,0,0,0.35);
+      --shadow-lg:  0 12px 48px rgba(0,0,0,0.5);
+      --transition: 0.26s cubic-bezier(0.34,1.4,0.64,1);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--night);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── BACKGROUND GRID ────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        radial-gradient(circle at 10% 90%, rgba(240,165,0,0.04) 0%, transparent 55%),
+        radial-gradient(circle at 90% 10%, rgba(74,168,216,0.04) 0%, transparent 55%),
+        url("data:image/svg+xml,%3Csvg width='48' height='48' viewBox='0 0 48 48' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none'%3E%3Crect x='23' y='23' width='2' height='2' fill='%234aa8d8' fill-opacity='0.04'/%3E%3C/g%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0;
+    }
+
+    .container { max-width: 1180px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* ─── HEADER ─────────────────────────────────────────────── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: relative; overflow: hidden;
+    }
+    header::after {
+      content: '';
+      position: absolute; bottom: -2px; left: 0; right: 0; height: 40px;
+      background: var(--night);
+      clip-path: ellipse(55% 100% at 50% 100%);
+    }
+
+    /* Animated grid/circuit background */
+    .header-circuit {
+      position: absolute; inset: 0; pointer-events: none; overflow: hidden;
+    }
+    .header-circuit svg { width: 100%; height: 100%; opacity: 0.06; }
+
+    .header-inner {
+      padding: 48px 24px 72px;
+      max-width: 1180px; margin: 0 auto;
+      position: relative; z-index: 2;
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 24px; flex-wrap: wrap;
+    }
+
+    .logo-mark {
+      display: flex; align-items: center; gap: 12px; margin-bottom: 18px;
+    }
+    .logo-icon {
+      width: 42px; height: 42px;
+      background: var(--amber); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+      animation: flicker 3s ease-in-out infinite;
+    }
+    @keyframes flicker {
+      0%, 90%, 100% { opacity: 1; }
+      92% { opacity: 0.6; }
+      94% { opacity: 1; }
+      96% { opacity: 0.7; }
+      98% { opacity: 1; }
+    }
+    .logo-text {
+      font-family: var(--font-mono);
+      font-size: 0.85rem; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--amber);
+    }
+
+    h1 {
+      font-family: var(--font-head);
+      font-size: clamp(2.6rem, 5.5vw, 4.4rem);
+      font-weight: 400; line-height: 1.08;
+      color: var(--ink); max-width: 620px;
+      font-style: italic;
+    }
+    h1 em { color: var(--amber); font-style: normal; }
+
+    .tagline {
+      margin-top: 14px; font-size: 1rem;
+      color: var(--muted); max-width: 500px; line-height: 1.65;
+    }
+
+    .header-stats {
+      display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px;
+    }
+    .h-stat {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 20px; text-align: center;
+    }
+    .h-stat-num {
+      font-family: var(--font-mono);
+      font-size: 1.6rem; font-weight: 500; color: var(--amber);
+      display: block;
+    }
+    .h-stat-label {
+      font-size: 0.7rem; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--muted); margin-top: 3px;
+    }
+
+    /* ─── NAV TABS ───────────────────────────────────────────── */
+    .nav-tabs {
+      display: flex; gap: 5px; flex-wrap: wrap;
+      margin: 36px 0 28px; padding: 5px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      width: fit-content;
+    }
+    .tab-btn {
+      padding: 9px 20px; border: none; background: transparent;
+      border-radius: 10px; cursor: pointer;
+      font-family: var(--font-body); font-size: 0.85rem;
+      font-weight: 700; letter-spacing: 0.02em;
+      color: var(--muted); transition: all 0.2s;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .tab-btn:hover { color: var(--text); background: var(--raised); }
+    .tab-btn.active {
+      background: var(--amber); color: var(--night);
+      box-shadow: 0 3px 12px rgba(240,165,0,0.3);
+    }
+
+    /* ─── SECTIONS ───────────────────────────────────────────── */
+    .section { display: none; animation: fadeUp 0.35s ease; }
+    .section.active { display: block; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─── CARDS ──────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 26px;
+      transition: box-shadow 0.2s;
+    }
+    .card:hover { box-shadow: var(--shadow-lg); border-color: var(--border-hi); }
+    .card-title {
+      font-size: 0.68rem; text-transform: uppercase;
+      letter-spacing: 0.14em; color: var(--amber);
+      font-weight: 700; margin-bottom: 18px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-title::before {
+      content: ''; width: 18px; height: 2px;
+      background: var(--amber); border-radius: 2px;
+    }
+
+    /* ─── GRIDS ──────────────────────────────────────────────── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 20px; }
+    @media (max-width: 768px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+
+    /* ─── NEIGHBORHOOD MAP ───────────────────────────────────── */
+    .map-wrap {
+      display: grid; grid-template-columns: 1fr 360px; gap: 22px; align-items: start;
+    }
+    @media (max-width: 900px) { .map-wrap { grid-template-columns: 1fr; } }
+
+    #neighborhood-grid {
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 7px;
+    }
+
+    .n-cell {
+      aspect-ratio: 1; border-radius: 9px; cursor: pointer;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      font-size: 0.56rem; font-weight: 700; text-align: center;
+      line-height: 1.2; padding: 4px;
+      transition: transform var(--transition), box-shadow 0.2s;
+      position: relative; border: 2px solid transparent;
+      color: white; text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+    }
+    .n-cell:hover { transform: scale(1.1); z-index: 2; box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+    .n-cell.selected { border-color: white; box-shadow: 0 0 0 3px var(--amber), 0 6px 20px rgba(0,0,0,0.4); z-index: 3; transform: scale(1.12); }
+    .n-cell .score-badge {
+      position: absolute; top: 3px; right: 3px;
+      background: rgba(0,0,0,0.35);
+      border-radius: 3px; font-size: 0.5rem;
+      padding: 1px 3px; font-family: var(--font-mono);
+    }
+
+    /* ─── DETAIL PANEL ───────────────────────────────────────── */
+    .detail-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: sticky; top: 20px;
+    }
+    .detail-header {
+      background: var(--raised);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 22px;
+    }
+    .detail-header h3 {
+      font-family: var(--font-head);
+      font-size: 1.25rem; font-weight: 400;
+      font-style: italic; color: var(--ink);
+    }
+    .detail-header p { font-size: 0.78rem; color: var(--muted); margin-top: 3px; }
+    .detail-body { padding: 18px 22px; }
+
+    /* vulnerability ring */
+    .vuln-ring-wrap { text-align: center; padding: 16px 0 6px; }
+    .vuln-ring { width: 104px; height: 104px; margin: 0 auto; position: relative; }
+    .vuln-ring svg { transform: rotate(-90deg); }
+    .vuln-ring-label {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-family: var(--font-mono);
+    }
+    .vuln-ring-num { font-size: 1.55rem; font-weight: 500; }
+    .vuln-ring-sub { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+
+    .metric-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 9px 0; border-bottom: 1px solid var(--border);
+    }
+    .metric-row:last-of-type { border-bottom: none; }
+    .metric-label { font-size: 0.74rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+    .metric-val { font-family: var(--font-mono); font-size: 0.95rem; font-weight: 500; color: var(--ink); }
+
+    .mini-bar-wrap { margin-top: 3px; }
+    .mini-bar-bg { height: 5px; background: var(--raised); border-radius: 3px; overflow: hidden; }
+    .mini-bar-fill { height: 100%; border-radius: 3px; transition: width 0.7s cubic-bezier(0.34,1.4,0.64,1); }
+
+    .action-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 5px 12px; border-radius: 20px;
+      font-size: 0.72rem; font-weight: 700;
+      margin: 3px 3px 0 0;
+    }
+
+    /* ─── BAR CHART ──────────────────────────────────────────── */
+    .bar-chart { display: flex; flex-direction: column; gap: 9px; }
+    .bar-row { display: flex; align-items: center; gap: 11px; }
+    .bar-name { font-size: 0.72rem; font-weight: 700; width: 138px; flex-shrink: 0; line-height: 1.2; text-align: right; color: var(--text); }
+    .bar-track { flex: 1; height: 26px; background: var(--raised); border-radius: 5px; overflow: hidden; position: relative; }
+    .bar-fill { height: 100%; border-radius: 5px; transition: width 1.1s cubic-bezier(0.34,1.4,0.64,1); display: flex; align-items: center; padding-left: 9px; }
+    .bar-val { font-family: var(--font-mono); font-size: 0.72rem; color: rgba(255,255,255,0.9); font-weight: 500; }
+    .bar-benchmark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--amber); opacity: 0.4; }
+
+    /* ─── COMPARE BARS ───────────────────────────────────────── */
+    .compare-header { display: grid; grid-template-columns: 1fr auto 1fr; gap: 14px; align-items: center; margin-bottom: 22px; }
+    .vs-badge {
+      background: var(--amber); color: var(--night);
+      width: 40px; height: 40px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.85rem; flex-shrink: 0;
+    }
+    .compare-select {
+      background: var(--raised); border: 1px solid var(--border);
+      border-radius: 9px; padding: 9px 13px;
+      font-family: var(--font-body); font-size: 0.88rem;
+      color: var(--ink); cursor: pointer; width: 100%;
+    }
+    .compare-select:focus { outline: none; border-color: var(--amber); }
+    .compare-bar-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; margin-bottom: 10px; }
+    .compare-bar-left { display: flex; justify-content: flex-end; }
+    .compare-bar-right { display: flex; justify-content: flex-start; }
+    .compare-bar-label { text-align: center; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); white-space: nowrap; }
+    .cbar { height: 28px; border-radius: 5px; transition: width 1s ease; display: flex; align-items: center; }
+    .cbar.left  { justify-content: flex-end; padding-right: 9px; background: var(--amber); }
+    .cbar.right { justify-content: flex-start; padding-left: 9px; background: var(--blue); }
+    .cbar span  { font-family: var(--font-mono); font-size: 0.74rem; color: var(--night); font-weight: 600; }
+
+    /* ─── LEGEND ─────────────────────────────────────────────── */
+    .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 700; color: var(--text); }
+    .legend-dot { width: 13px; height: 13px; border-radius: 3px; flex-shrink: 0; }
+
+    /* ─── POLICY GENERATOR ───────────────────────────────────── */
+    .policy-select-row { display: flex; gap: 13px; flex-wrap: wrap; margin-bottom: 22px; }
+    .policy-select-wrap { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 175px; }
+    .policy-select-wrap label { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--amber); }
+    select {
+      padding: 9px 13px; border-radius: 9px;
+      border: 1px solid var(--border);
+      background: var(--raised); font-family: var(--font-body);
+      font-size: 0.86rem; color: var(--ink);
+      cursor: pointer; transition: border-color 0.2s;
+    }
+    select:focus { outline: none; border-color: var(--amber); }
+
+    input[type=range] {
+      width: 100%; accent-color: var(--amber);
+      background: transparent; border: none; padding: 0; cursor: pointer;
+    }
+    .range-val { font-family: var(--font-mono); font-weight: 500; font-size: 0.88rem; color: var(--amber); }
+
+    .generate-btn {
+      background: var(--amber); color: var(--night);
+      border: none; border-radius: 10px;
+      padding: 12px 28px; font-family: var(--font-body);
+      font-size: 0.92rem; font-weight: 800; cursor: pointer;
+      transition: transform var(--transition), box-shadow 0.2s;
+      letter-spacing: 0.03em; display: flex; align-items: center; gap: 9px;
+    }
+    .generate-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(240,165,0,0.3); }
+    .generate-btn:active { transform: translateY(0); }
+    .generate-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .policy-output {
+      background: var(--raised);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--amber);
+      border-radius: var(--radius); padding: 26px;
+      margin-top: 18px; position: relative; overflow: hidden;
+      animation: fadeUp 0.4s ease;
+    }
+    .policy-output h3 {
+      font-family: var(--font-head);
+      font-size: 1.35rem; font-style: italic;
+      margin-bottom: 18px; color: var(--amber);
+    }
+    .policy-section { margin-bottom: 18px; }
+    .policy-section-title {
+      font-size: 0.66rem; text-transform: uppercase;
+      letter-spacing: 0.14em; color: var(--muted);
+      margin-bottom: 7px; font-weight: 700;
+    }
+    .policy-section p { font-size: 0.88rem; line-height: 1.68; color: var(--text); }
+    .policy-actions { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 14px; }
+    .policy-action-btn {
+      background: rgba(240,165,0,0.1); border: 1px solid rgba(240,165,0,0.25);
+      color: var(--amber); border-radius: 7px; padding: 7px 16px;
+      font-family: var(--font-body); font-size: 0.78rem;
+      font-weight: 700; cursor: pointer; transition: background 0.2s;
+      display: flex; align-items: center; gap: 5px;
+    }
+    .policy-action-btn:hover { background: rgba(240,165,0,0.2); }
+
+    /* ─── EQUITY CARDS ───────────────────────────────────────── */
+    .equity-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 4px solid;
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      box-shadow: var(--shadow);
+    }
+    .equity-card h4 { font-family: var(--font-head); font-size: 1rem; font-style: italic; margin-bottom: 5px; color: var(--ink); }
+    .equity-card p  { font-size: 0.8rem; color: var(--muted); line-height: 1.55; }
+    .equity-card .score { font-family: var(--font-mono); font-size: 1.9rem; font-weight: 500; float: right; margin-left: 14px; }
+    .tag {
+      display: inline-block; font-size: 0.65rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.08em;
+      padding: 3px 10px; border-radius: 20px;
+      margin-right: 5px; margin-top: 9px;
+    }
+
+    /* ─── MEDICAL DEVICE CARDS ───────────────────────────────── */
+    .device-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px,1fr)); gap: 14px; }
+    .device-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px;
+      box-shadow: var(--shadow);
+    }
+    .device-card .d-icon { font-size: 1.8rem; margin-bottom: 8px; display: block; }
+    .device-card h4 { font-family: var(--font-head); font-size: 0.95rem; font-style: italic; margin-bottom: 5px; color: var(--ink); }
+    .device-card p { font-size: 0.76rem; color: var(--muted); line-height: 1.5; }
+    .device-card .risk-pill {
+      display: inline-block; margin-top: 8px;
+      font-size: 0.66rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.07em; padding: 3px 11px; border-radius: 20px;
+    }
+
+    /* ─── TOOLTIP ────────────────────────────────────────────── */
+    #tooltip {
+      position: fixed; background: var(--raised);
+      border: 1px solid var(--border);
+      color: var(--text); border-radius: 9px;
+      padding: 10px 15px; font-size: 0.78rem;
+      pointer-events: none; z-index: 999;
+      opacity: 0; transition: opacity 0.14s;
+      max-width: 220px; line-height: 1.55;
+      box-shadow: var(--shadow-lg);
+    }
+    #tooltip.visible { opacity: 1; }
+
+    /* ─── FOOTER ─────────────────────────────────────────────── */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      text-align: center; padding: 28px 24px;
+      font-size: 0.76rem; margin-top: 72px;
+    }
+    footer a { color: var(--amber); text-decoration: none; }
+    footer strong { color: var(--text); }
+
+    /* ─── UTILITIES ──────────────────────────────────────────── */
+    .section-heading { font-family: var(--font-head); font-size: 1.55rem; font-weight: 400; font-style: italic; margin-bottom: 5px; color: var(--ink); }
+    .section-sub { font-size: 0.86rem; color: var(--muted); margin-bottom: 26px; line-height: 1.6; }
+    .data-note { font-size: 0.72rem; color: var(--muted); font-style: italic; margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+    .export-bar { display: flex; justify-content: flex-end; gap: 9px; margin-bottom: 18px; }
+    .export-btn {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 7px; padding: 6px 14px;
+      font-family: var(--font-body); font-size: 0.75rem;
+      font-weight: 700; cursor: pointer; color: var(--amber);
+      transition: all 0.2s;
+    }
+    .export-btn:hover { background: var(--raised); border-color: var(--amber); }
+
+    .skip-link {
+      position: absolute; top: -40px; left: 0;
+      background: var(--amber); color: var(--night);
+      padding: 8px 16px; font-weight: 700;
+      border-radius: 0 0 8px 0; transition: top 0.2s; z-index: 9999;
+    }
+    .skip-link:focus { top: 0; }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: var(--surface); }
+    ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 3px; }
+
+    @media (max-width: 600px) {
+      #neighborhood-grid { grid-template-columns: repeat(4,1fr); }
+      .header-inner { flex-direction: column; }
+    }
+
+    .spinner {
+      width: 18px; height: 18px; border-radius: 50%;
+      border: 2px solid rgba(13,17,23,0.3);
+      border-top-color: var(--night);
+      animation: spin 0.65s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<a href="#main" class="skip-link">Skip to main content</a>
+<div id="tooltip" role="tooltip" aria-live="polite"></div>
+
+<!-- ═══════════════════════ HEADER ═══════════════════════════ -->
+<header>
+  <div class="header-circuit" aria-hidden="true">
+    <svg viewBox="0 0 1440 280" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <line x1="0" y1="140" x2="1440" y2="140" stroke="#f0a500" stroke-width="1"/>
+      <line x1="720" y1="0" x2="720" y2="280" stroke="#4aa8d8" stroke-width="1"/>
+      <circle cx="720" cy="140" r="40" fill="none" stroke="#f0a500" stroke-width="1"/>
+      <circle cx="720" cy="140" r="80" fill="none" stroke="#4aa8d8" stroke-width="0.5"/>
+      <circle cx="720" cy="140" r="130" fill="none" stroke="#f0a500" stroke-width="0.3"/>
+      <line x1="200" y1="0" x2="200" y2="280" stroke="#4aa8d8" stroke-width="0.5"/>
+      <line x1="1240" y1="0" x2="1240" y2="280" stroke="#4aa8d8" stroke-width="0.5"/>
+      <rect x="180" y="120" width="40" height="40" fill="none" stroke="#f0a500" stroke-width="0.7"/>
+      <rect x="1220" y="120" width="40" height="40" fill="none" stroke="#f0a500" stroke-width="0.7"/>
+    </svg>
+  </div>
+
+  <div class="header-inner">
+    <div>
+      <div class="logo-mark">
+        <div class="logo-icon" aria-hidden="true">⚡</div>
+        <span class="logo-text">VitalGrid</span>
+      </div>
+      <h1>When the grid fails,<br>who loses <em>life support?</em></h1>
+      <p class="tagline">Power outages are climate events. For residents on ventilators, oxygen concentrators, and powered wheelchairs, they're potentially fatal. VitalGrid maps where outage risk meets medical vulnerability — before the lights go out.</p>
+    </div>
+
+    <div class="header-stats" id="header-stats" aria-label="Philadelphia summary statistics">
+      <div class="h-stat">
+        <span class="h-stat-num">~500K</span>
+        <span class="h-stat-label">PA residents on<br>powered med. equipment</span>
+      </div>
+      <div class="h-stat">
+        <span class="h-stat-num">26%</span>
+        <span class="h-stat-label">U.S. adults<br>with a disability</span>
+      </div>
+      <div class="h-stat">
+        <span class="h-stat-num">4.2×</span>
+        <span class="h-stat-label">Elevated outage<br>death risk, device users</span>
+      </div>
+      <div class="h-stat">
+        <span class="h-stat-num">72hrs</span>
+        <span class="h-stat-label">Median critical<br>device battery life</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ═══════════════════════ MAIN ═════════════════════════════ -->
+<main id="main">
+<div class="container" style="padding-top:36px; padding-bottom:56px;">
+
+  <nav class="nav-tabs" role="tablist" aria-label="VitalGrid sections">
+    <button class="tab-btn active" role="tab" aria-selected="true"  aria-controls="tab-map"     onclick="switchTab('map')"    ><span aria-hidden="true">🗺️</span> Neighborhood Map</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-equity"  onclick="switchTab('equity')" ><span aria-hidden="true">⚖️</span> Equity Analysis</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-compare" onclick="switchTab('compare')"><span aria-hidden="true">📊</span> Compare</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-policy"  onclick="switchTab('policy')" ><span aria-hidden="true">📋</span> Policy Actions</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-devices" onclick="switchTab('devices')"><span aria-hidden="true">🔌</span> Medical Devices</button>
+  </nav>
+
+  <!-- ─── TAB: NEIGHBORHOOD MAP ──────────────────────────── -->
+  <section class="section active" id="tab-map" role="tabpanel">
+    <h2 class="section-heading">Philadelphia Neighborhood Vulnerability</h2>
+    <p class="section-sub">Click any neighborhood to see composite Power Vulnerability Score. Color = combined risk level.</p>
+
+    <div class="legend" aria-label="Vulnerability legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--risk-low)"></div> Low (0–39)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--risk-moderate)"></div> Moderate (40–59)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--risk-high)"></div> High (60–79)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--risk-critical)"></div> Critical (80–100)</div>
+    </div>
+
+    <div class="map-wrap">
+      <div class="card" style="padding:18px">
+        <p class="card-title">Neighborhood Vulnerability Grid</p>
+        <div id="neighborhood-grid" role="grid" aria-label="Neighborhood vulnerability grid"></div>
+        <p class="data-note">* Composite Power Vulnerability Score (PVS) combines outage frequency index, estimated medical device dependency, household recovery capacity, and climate hazard exposure. Data modeled from EIA-861, CDC PLACES, CMS DME claims, ACS Census, and NOAA. Demonstration pilot — see GitHub for methodology.</p>
+      </div>
+
+      <div class="detail-panel" id="detail-panel" aria-live="polite">
+        <div class="detail-header">
+          <h3 id="detail-name">Select a neighborhood</h3>
+          <p id="detail-district">Click any cell to explore</p>
+        </div>
+        <div class="detail-body">
+          <div class="vuln-ring-wrap">
+            <div class="vuln-ring" aria-label="Vulnerability score ring">
+              <svg width="104" height="104" viewBox="0 0 104 104">
+                <circle cx="52" cy="52" r="42" fill="none" stroke="var(--raised)" stroke-width="10"/>
+                <circle cx="52" cy="52" r="42" fill="none" stroke="var(--amber)" stroke-width="10"
+                  stroke-dasharray="264" id="ring-fill" stroke-dashoffset="264"
+                  stroke-linecap="round" style="transition: stroke-dashoffset 0.75s ease, stroke 0.35s"/>
+              </svg>
+              <div class="vuln-ring-label">
+                <span class="vuln-ring-num" id="ring-num" style="color:var(--amber)">—</span>
+                <span class="vuln-ring-sub">PV Score</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="metric-row">
+            <span class="metric-label">⚡ Outage Frequency</span>
+            <span class="metric-val" id="d-outage">—</span>
+          </div>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-bg"><div class="mini-bar-fill" id="bar-outage" style="width:0%;background:var(--red)"></div></div>
+          </div>
+
+          <div class="metric-row" style="margin-top:8px">
+            <span class="metric-label">🫁 Medical Dependency</span>
+            <span class="metric-val" id="d-medical">—</span>
+          </div>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar-bg"><div class="mini-bar-fill" id="bar-medical" style="width:0%;background:var(--amber)"></div></div>
+          </div>
+
+          <div class="metric-row" style="margin-top:8px">
+            <span class="metric-label">💸 Recovery Gap</span>
+            <span class="metric-val" id="d-recovery">—</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">🌡️ Climate Exposure</span>
+            <span class="metric-val" id="d-climate">—</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">💰 Median Income</span>
+            <span class="metric-val" id="d-income">—</span>
+          </div>
+          <div class="metric-row">
+            <span class="metric-label">♿ Disabled Residents</span>
+            <span class="metric-val" id="d-disability">—</span>
+          </div>
+
+          <div id="detail-actions" style="margin-top:14px; display:none">
+            <p style="font-size:0.66rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-bottom:7px">Priority Actions</p>
+            <div id="action-chips"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── TAB: EQUITY ANALYSIS ───────────────────────────── -->
+  <section class="section" id="tab-equity" role="tabpanel">
+    <h2 class="section-heading">Equity Gap Analysis</h2>
+    <p class="section-sub">Power vulnerability correlates strongly with income, disability prevalence, and race. FEMA and utilities plan for average households. These neighborhoods are not average.</p>
+
+    <div class="export-bar">
+      <button class="export-btn" onclick="window.print()">🖨️ Print Report</button>
+      <button class="export-btn" onclick="copyData()">📋 Copy Data</button>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:20px">
+      <div class="card">
+        <p class="card-title">Power Vulnerability Score by Neighborhood</p>
+        <div id="equity-bar-chart" class="bar-chart"></div>
+      </div>
+      <div class="card">
+        <p class="card-title">Income vs. Medical Dependency</p>
+        <canvas id="scatter-canvas" width="400" height="260" role="img" aria-label="Scatter plot of income vs medical device dependency"></canvas>
+        <p class="data-note">Each dot = one neighborhood. Size = Disabled population share. Red = critical vulnerability score.</p>
+      </div>
+    </div>
+
+    <div class="grid-3" style="margin-bottom:20px" id="equity-summary-cards"></div>
+
+    <div class="card">
+      <p class="card-title">What a City-Level Pre-Notification Program Would Mean</p>
+      <div id="impact-bars" class="bar-chart"></div>
+    </div>
+  </section>
+
+  <!-- ─── TAB: COMPARE ───────────────────────────────────── -->
+  <section class="section" id="tab-compare" role="tabpanel">
+    <h2 class="section-heading">Side-by-Side Neighborhood Comparison</h2>
+    <p class="section-sub">Compare any two neighborhoods across six vulnerability dimensions.</p>
+    <div class="card">
+      <div class="compare-header">
+        <select class="compare-select" id="compare-left"  onchange="renderCompare()" aria-label="First neighborhood"></select>
+        <div class="vs-badge">VS</div>
+        <select class="compare-select" id="compare-right" onchange="renderCompare()" aria-label="Second neighborhood"></select>
+      </div>
+      <div id="compare-body"></div>
+    </div>
+  </section>
+
+  <!-- ─── TAB: POLICY ACTIONS ────────────────────────────── -->
+  <section class="section" id="tab-policy" role="tabpanel">
+    <h2 class="section-heading">Policy Action Generator</h2>
+    <p class="section-sub">Select a neighborhood and intervention type to generate data-driven recommendations ready for utility engagement, council testimony, or emergency management planning.</p>
+    <div class="card">
+      <div class="policy-select-row">
+        <div class="policy-select-wrap">
+          <label>Neighborhood</label>
+          <select id="pol-neighborhood"></select>
+        </div>
+        <div class="policy-select-wrap">
+          <label>Intervention Type</label>
+          <select id="pol-type">
+            <option value="prenotify">Utility Pre-Notification Program</option>
+            <option value="backup">Community Backup Power Hubs</option>
+            <option value="registry">Medical Needs Registry</option>
+            <option value="evacuation">Accessible Evacuation Planning</option>
+            <option value="resilience">Neighborhood Resilience Center</option>
+          </select>
+        </div>
+        <div class="policy-select-wrap">
+          <label>Budget Scale: <span class="range-val" id="pol-budget-val">$500K</span></label>
+          <input type="range" id="pol-budget" min="1" max="10" value="5" step="1" oninput="updateBudgetLabel(this.value)" />
+        </div>
+        <div style="display:flex;align-items:flex-end">
+          <button class="generate-btn" id="gen-btn" onclick="generatePolicy()">
+            <span id="gen-btn-text">Generate Recommendation</span>
+            <span>⚡</span>
+          </button>
+        </div>
+      </div>
+      <div id="policy-output-wrap"></div>
+    </div>
+  </section>
+
+  <!-- ─── TAB: MEDICAL DEVICES ───────────────────────────── -->
+  <section class="section" id="tab-devices" role="tabpanel">
+    <h2 class="section-heading">Medical Devices & Outage Risk</h2>
+    <p class="section-sub">For hundreds of thousands of Pennsylvanians, electricity is not a convenience — it's a medical necessity. These are the devices at stake when the grid fails.</p>
+
+    <div class="grid-2" style="margin-bottom:22px">
+      <div class="card">
+        <p class="card-title">Why Outages Are a Disability Emergency</p>
+        <div id="device-why" class="device-grid"></div>
+      </div>
+      <div class="card">
+        <p class="card-title">Medical Dependency × Outage Risk by Neighborhood</p>
+        <canvas id="device-canvas" width="400" height="320" role="img" aria-label="Bubble chart of medical dependency vs outage risk"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <p class="card-title">Compound Vulnerability Index — Top 16 Neighborhoods</p>
+      <div id="device-risk-bars" class="bar-chart" style="gap:7px"></div>
+      <p class="data-note">Compound Vulnerability combines outage frequency, medical device dependency, recovery capacity, disability prevalence, and climate exposure. Higher = more urgent for pre-notification and resilience planning.</p>
+    </div>
+  </section>
+
+</div>
+</main>
+
+<footer>
+  <p><strong>VitalGrid — Power Outage Vulnerability Index</strong> &nbsp;|&nbsp; Philadelphia, PA</p>
+  <p style="margin-top:5px">Part of the <em>Vibe Coding for Climate Action</em> portfolio by <a href="https://github.com/meyeringn" target="_blank">Nico Meyering</a>. Data modeled from EIA-861, CDC PLACES, CMS DME, ACS Census, and NOAA climate indices.</p>
+  <p style="margin-top:7px; font-size:0.68rem">Demonstration pilot using synthetic data. Not for regulatory use. <a href="https://github.com/meyeringn/vitalgrid" target="_blank">github.com/meyeringn/vitalgrid</a></p>
+</footer>
+
+<!-- ═══════════════════════ DATA + LOGIC ═════════════════════ -->
+<script>
+/* ─── DATA ────────────────────────────────────────────────────
+   outage: 0-100 (outage frequency index)
+   medical: 0-100 (estimated medical device dependency)
+   recovery: 0-100 (inverse recovery capacity — higher = worse)
+   climate: 0-100 (climate hazard exposure)
+   income: $K median household
+   disability: % residents
+   pctNonWhite: %
+──────────────────────────────────────────────────────────── */
+const neighborhoods = [
+  // Northwest — lower vulnerability
+  { name: 'Chestnut Hill',      district: 'Northwest',  outage: 22, medical: 24, recovery: 18, climate: 28, income: 98,  disability: 8,  pctNonWhite: 18 },
+  { name: 'Mt. Airy',           district: 'Northwest',  outage: 28, medical: 30, recovery: 26, climate: 32, income: 72,  disability: 10, pctNonWhite: 52 },
+  { name: 'Roxborough',         district: 'Northwest',  outage: 32, medical: 28, recovery: 24, climate: 34, income: 68,  disability: 11, pctNonWhite: 28 },
+  { name: 'Manayunk',           district: 'Northwest',  outage: 36, medical: 29, recovery: 30, climate: 35, income: 62,  disability: 9,  pctNonWhite: 24 },
+  { name: 'East Falls',         district: 'Northwest',  outage: 34, medical: 27, recovery: 25, climate: 33, income: 74,  disability: 8,  pctNonWhite: 30 },
+  { name: 'Germantown',         district: 'Northwest',  outage: 55, medical: 58, recovery: 60, climate: 52, income: 38,  disability: 16, pctNonWhite: 78 },
+
+  // Northeast — mixed
+  { name: 'Mayfair',            district: 'Northeast',  outage: 44, medical: 48, recovery: 42, climate: 45, income: 52,  disability: 13, pctNonWhite: 42 },
+  { name: 'Northeast Philly',   district: 'Northeast',  outage: 40, medical: 44, recovery: 38, climate: 42, income: 58,  disability: 12, pctNonWhite: 34 },
+  { name: 'Oxford Circle',      district: 'Northeast',  outage: 62, medical: 65, recovery: 68, climate: 58, income: 40,  disability: 17, pctNonWhite: 68 },
+  { name: 'Frankford',          district: 'Northeast',  outage: 72, medical: 70, recovery: 76, climate: 65, income: 34,  disability: 19, pctNonWhite: 72 },
+  { name: 'Rhawnhurst',         district: 'Northeast',  outage: 42, medical: 46, recovery: 40, climate: 44, income: 55,  disability: 13, pctNonWhite: 38 },
+  { name: 'Holmesburg',         district: 'Northeast',  outage: 45, medical: 49, recovery: 44, climate: 46, income: 54,  disability: 12, pctNonWhite: 40 },
+
+  // North — highest vulnerability
+  { name: 'Kensington',         district: 'North',      outage: 88, medical: 84, recovery: 92, climate: 80, income: 18,  disability: 28, pctNonWhite: 82 },
+  { name: 'Fairhill',           district: 'North',      outage: 91, medical: 87, recovery: 95, climate: 82, income: 15,  disability: 30, pctNonWhite: 95 },
+  { name: 'Hunting Park',       district: 'North',      outage: 85, medical: 80, recovery: 88, climate: 76, income: 20,  disability: 26, pctNonWhite: 91 },
+  { name: 'Strawberry Mans.',   district: 'North',      outage: 82, medical: 79, recovery: 86, climate: 74, income: 24,  disability: 24, pctNonWhite: 88 },
+  { name: 'Nicetown',           district: 'North',      outage: 83, medical: 81, recovery: 87, climate: 75, income: 22,  disability: 25, pctNonWhite: 90 },
+  { name: 'Tioga',              district: 'North',      outage: 78, medical: 75, recovery: 82, climate: 70, income: 26,  disability: 23, pctNonWhite: 88 },
+
+  // West Philadelphia
+  { name: 'West Philly / UC',   district: 'West',       outage: 76, medical: 74, recovery: 80, climate: 68, income: 35,  disability: 18, pctNonWhite: 74 },
+  { name: 'Cobbs Creek',        district: 'West',       outage: 68, medical: 66, recovery: 72, climate: 62, income: 36,  disability: 17, pctNonWhite: 86 },
+  { name: 'Mantua',             district: 'West',       outage: 80, medical: 78, recovery: 84, climate: 72, income: 28,  disability: 22, pctNonWhite: 89 },
+  { name: 'Carroll Park',       district: 'West',       outage: 74, medical: 72, recovery: 78, climate: 66, income: 28,  disability: 22, pctNonWhite: 88 },
+  { name: 'Overbrook',          district: 'West',       outage: 52, medical: 54, recovery: 50, climate: 48, income: 42,  disability: 15, pctNonWhite: 78 },
+  { name: 'Wynnefield',         district: 'West',       outage: 48, medical: 50, recovery: 46, climate: 46, income: 48,  disability: 13, pctNonWhite: 68 },
+
+  // South Philadelphia
+  { name: 'Grays Ferry',        district: 'South',      outage: 72, medical: 70, recovery: 75, climate: 64, income: 28,  disability: 22, pctNonWhite: 78 },
+  { name: 'Southwest Philly',   district: 'South',      outage: 82, medical: 80, recovery: 86, climate: 75, income: 26,  disability: 24, pctNonWhite: 88 },
+  { name: 'Eastwick',           district: 'South',      outage: 64, medical: 62, recovery: 68, climate: 58, income: 38,  disability: 16, pctNonWhite: 72 },
+  { name: 'Passyunk',           district: 'South',      outage: 42, medical: 44, recovery: 40, climate: 40, income: 68,  disability: 10, pctNonWhite: 34 },
+  { name: 'South Philly',       district: 'South',      outage: 48, medical: 50, recovery: 46, climate: 44, income: 44,  disability: 14, pctNonWhite: 46 },
+
+  // Center City + adjacent
+  { name: 'Center City',        district: 'Center',     outage: 20, medical: 18, recovery: 15, climate: 22, income: 92,  disability: 8,  pctNonWhite: 30 },
+  { name: 'Fairmount',          district: 'Center',     outage: 30, medical: 26, recovery: 22, climate: 28, income: 82,  disability: 9,  pctNonWhite: 26 },
+  { name: 'Fishtown',           district: 'Center',     outage: 35, medical: 30, recovery: 28, climate: 32, income: 80,  disability: 9,  pctNonWhite: 20 },
+  { name: 'Northern Liberties', district: 'Center',     outage: 32, medical: 28, recovery: 24, climate: 30, income: 88,  disability: 8,  pctNonWhite: 22 },
+  { name: 'Brewerytown',        district: 'Center',     outage: 55, medical: 52, recovery: 56, climate: 50, income: 52,  disability: 13, pctNonWhite: 60 },
+  { name: 'Spring Garden',      district: 'Center',     outage: 38, medical: 34, recovery: 30, climate: 34, income: 76,  disability: 9,  pctNonWhite: 28 },
+];
+
+/* ─── SCORE HELPERS ───────────────────────────────────────── */
+function pvScore(n) {
+  return Math.round(n.outage * 0.35 + n.medical * 0.35 + n.recovery * 0.30);
+}
+
+function riskLevel(score) {
+  if (score >= 80) return { level: 'critical', label: 'Critical',  color: '#b83232' };
+  if (score >= 60) return { level: 'high',     label: 'High',      color: '#e05252' };
+  if (score >= 40) return { level: 'moderate', label: 'Moderate',  color: '#f0a500' };
+  return               { level: 'low',      label: 'Low',       color: '#3db87a' };
+}
+
+function riskColor(score) { return riskLevel(score).color; }
+
+/* ─── TOOLTIP ─────────────────────────────────────────────── */
+const tip = document.getElementById('tooltip');
+function showTip(e, html) { tip.innerHTML = html; tip.classList.add('visible'); moveTip(e); }
+function moveTip(e) {
+  const x = Math.min(e.clientX + 14, window.innerWidth - 236);
+  const y = Math.min(e.clientY + 14, window.innerHeight - 110);
+  tip.style.left = x + 'px'; tip.style.top = y + 'px';
+}
+function hideTip() { tip.classList.remove('visible'); }
+
+/* ─── TAB SWITCHING ───────────────────────────────────────── */
+function switchTab(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected','false'); });
+  document.getElementById('tab-' + id).classList.add('active');
+  const btn = [...document.querySelectorAll('.tab-btn')].find(b => b.getAttribute('onclick')?.includes("'" + id + "'"));
+  if (btn) { btn.classList.add('active'); btn.setAttribute('aria-selected','true'); }
+  if (id === 'equity')  renderEquityTab();
+  if (id === 'compare') renderCompareTab();
+  if (id === 'policy')  renderPolicyTab();
+  if (id === 'devices') renderDevicesTab();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   NEIGHBORHOOD GRID
+═══════════════════════════════════════════════════════════ */
+let selectedIdx = null;
+
+function buildGrid() {
+  const grid = document.getElementById('neighborhood-grid');
+  grid.innerHTML = '';
+  neighborhoods.forEach((n, i) => {
+    const score = pvScore(n);
+    const risk  = riskLevel(score);
+    const cell  = document.createElement('div');
+    cell.className = 'n-cell';
+    cell.style.background = risk.color + 'cc';
+    cell.setAttribute('role', 'gridcell');
+    cell.setAttribute('tabindex', '0');
+    cell.setAttribute('aria-label', `${n.name}: PV Score ${score}, ${risk.label}`);
+    cell.innerHTML = `
+      <span style="font-size:0.53rem;line-height:1.2">${n.name}</span>
+      <span class="score-badge">${score}</span>
+    `;
+    cell.addEventListener('click', () => selectNeighborhood(i));
+    cell.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); selectNeighborhood(i); }});
+    cell.addEventListener('mouseenter', e => showTip(e,
+      `<strong style="color:#e8f0f8">${n.name}</strong><br>
+       District: ${n.district}<br>
+       PV Score: <strong style="color:${risk.color}">${score} — ${risk.label}</strong><br>
+       Outage Index: ${n.outage}<br>
+       Med. Dependency: ${n.medical}<br>
+       Disability: ${n.disability}%`
+    ));
+    cell.addEventListener('mousemove', moveTip);
+    cell.addEventListener('mouseleave', hideTip);
+    grid.appendChild(cell);
+  });
+}
+
+function selectNeighborhood(i) {
+  const n     = neighborhoods[i];
+  const score = pvScore(n);
+  const risk  = riskLevel(score);
+  selectedIdx = i;
+
+  document.querySelectorAll('.n-cell').forEach((c,j) => c.classList.toggle('selected', j===i));
+
+  document.getElementById('detail-name').textContent     = n.name;
+  document.getElementById('detail-district').textContent = n.district + ' District';
+  document.getElementById('d-outage').textContent        = n.outage + ' / 100';
+  document.getElementById('d-medical').textContent       = n.medical + ' / 100';
+  document.getElementById('d-recovery').textContent      = n.recovery + ' / 100';
+  document.getElementById('d-climate').textContent       = n.climate + ' / 100';
+  document.getElementById('d-income').textContent        = '$' + n.income + 'K median';
+  document.getElementById('d-disability').textContent    = n.disability + '% of residents';
+
+  setTimeout(() => {
+    document.getElementById('bar-outage').style.width  = n.outage + '%';
+    document.getElementById('bar-medical').style.width = n.medical + '%';
+  }, 60);
+
+  const circumference = 264;
+  const offset = circumference - (score / 100) * circumference;
+  const ring = document.getElementById('ring-fill');
+  ring.style.strokeDashoffset = offset;
+  ring.style.stroke = risk.color;
+  const num = document.getElementById('ring-num');
+  num.textContent  = score;
+  num.style.color  = risk.color;
+
+  const actions = getActions(n, score);
+  document.getElementById('action-chips').innerHTML = actions.map(a =>
+    `<span class="action-chip" style="background:${a.color}18;color:${a.color};border:1px solid ${a.color}38">${a.icon} ${a.label}</span>`
+  ).join('');
+  document.getElementById('detail-actions').style.display = 'block';
+
+  setTimeout(() => {
+    document.getElementById('detail-panel').scrollIntoView({ behavior:'smooth', block:'nearest' });
+  }, 100);
+}
+
+function getActions(n, score) {
+  const a = [];
+  if (n.outage  >= 70) a.push({ icon: '⚡', label: 'Utility Pre-Notification', color: '#e05252' });
+  if (n.medical >= 70) a.push({ icon: '🫁', label: 'Medical Registry Priority', color: '#f0a500' });
+  if (n.recovery>= 70) a.push({ icon: '💸', label: 'Recovery Fund Target',      color: '#b83232' });
+  if (n.disability >= 20) a.push({ icon: '♿', label: 'Accessible Planning',    color: '#4aa8d8' });
+  if (score >= 80)    a.push({ icon: '🔴', label: 'Emergency Response Priority', color: '#b83232' });
+  if (a.length === 0) a.push({ icon: '✅', label: 'Maintain Monitoring',         color: '#3db87a' });
+  return a;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   EQUITY TAB
+═══════════════════════════════════════════════════════════ */
+let equityRendered = false;
+function renderEquityTab() {
+  if (equityRendered) return;
+  equityRendered = true;
+
+  // Bar chart — worst 18
+  const sorted = [...neighborhoods].sort((a,b) => pvScore(b) - pvScore(a)).slice(0,18);
+  const barEl  = document.getElementById('equity-bar-chart');
+  barEl.innerHTML = sorted.map(n => {
+    const score = pvScore(n);
+    const pct   = score;
+    return `<div class="bar-row">
+      <div class="bar-name">${n.name}</div>
+      <div class="bar-track">
+        <div class="bar-fill" data-w="${pct}" style="width:0%;background:${riskColor(score)};transition-delay:${Math.random()*0.25}s">
+          <span class="bar-val">${score}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  setTimeout(() => { barEl.querySelectorAll('.bar-fill').forEach(b => b.style.width = b.dataset.w + '%'); }, 120);
+
+  // Summary cards — worst 3
+  const worst3  = [...neighborhoods].sort((a,b) => pvScore(b) - pvScore(a)).slice(0,3);
+  const levels  = [
+    { cls: 'critical', label: 'Critical — Immediate Action Required' },
+    { cls: 'concern',  label: 'High Concern' },
+    { cls: 'moderate', label: 'Elevated Risk' },
+  ];
+  document.getElementById('equity-summary-cards').innerHTML = worst3.map((n,i) => {
+    const score = pvScore(n);
+    const risk  = riskLevel(score);
+    return `<div class="equity-card" style="border-left-color:${risk.color}">
+      <span class="score" style="color:${risk.color}">${score}</span>
+      <h4>${n.name}</h4>
+      <p>${n.district} District — outage index <strong style="color:${risk.color}">${n.outage}</strong>, medical dependency <strong>${n.medical}</strong>. ${n.disability}% Disabled residents. Median income $${n.income}K.</p>
+      <span class="tag" style="background:${risk.color}18;color:${risk.color}">${levels[i].label}</span>
+    </div>`;
+  }).join('');
+
+  // Impact bars
+  const impacts = [
+    { label: 'Households enrolled in utility pre-notification',  val: 85000, max: 85000, unit: 'households',  color: '#f0a500' },
+    { label: 'Disabled residents with backup power access',       val: 32000, max: 32000, unit: 'residents',   color: '#4aa8d8' },
+    { label: 'Critical neighborhoods with resilience hubs',       val: 22,    max: 36,    unit: 'of 36 nbhds', color: '#3db87a' },
+    { label: 'Estimated outage deaths prevented annually',        val: 85,    max: 85,    unit: 'lives/yr',    color: '#e05252' },
+    { label: 'Medical device users with generator access',        val: 18000, max: 18000, unit: 'residents',   color: '#b83232' },
+  ];
+  const impEl = document.getElementById('impact-bars');
+  impEl.innerHTML = impacts.map(imp => `
+    <div class="bar-row">
+      <div class="bar-name">${imp.label}</div>
+      <div class="bar-track">
+        <div class="bar-fill" data-w="${imp.val/imp.max*100}" style="width:0%;background:${imp.color}">
+          <span class="bar-val">${typeof imp.val === 'number' && imp.val >= 1000 ? imp.val.toLocaleString() : imp.val} ${imp.unit}</span>
+        </div>
+      </div>
+    </div>`).join('');
+  setTimeout(() => { impEl.querySelectorAll('.bar-fill').forEach(b => b.style.width = b.dataset.w + '%'); }, 300);
+
+  drawScatter();
+}
+
+function drawScatter() {
+  const canvas = document.getElementById('scatter-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 400, H = canvas.offsetHeight || 260;
+  canvas.width = W; canvas.height = H;
+  const pad = { t: 20, r: 20, b: 40, l: 52 };
+  const pW = W - pad.l - pad.r, pH = H - pad.t - pad.b;
+
+  ctx.strokeStyle = 'rgba(42,52,68,0.8)'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const x = pad.l + (i/5)*pW, y = pad.t + (i/5)*pH;
+    ctx.beginPath(); ctx.moveTo(x, pad.t); ctx.lineTo(x, pad.t+pH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(pad.l+pW, y); ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(90,112,144,0.7)'; ctx.font = '10px DM Mono, monospace'; ctx.textAlign = 'center';
+  for (let i = 0; i <= 5; i++) ctx.fillText(`$${i*20}K`, pad.l + (i/5)*pW, H - 8);
+  ctx.save(); ctx.translate(14, pad.t+pH/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('Med. Dependency', 0, 0); ctx.restore();
+
+  neighborhoods.forEach(n => {
+    const x = pad.l + (n.income / 100) * pW;
+    const y = pad.t + pH - (n.medical / 100) * pH;
+    const r = 4 + (n.disability / 35) * 8;
+    const score = pvScore(n);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2);
+    const a = 0.3 + Math.min(score/100, 0.65);
+    ctx.fillStyle = score >= 80 ? `rgba(184,50,50,${a})` : score >= 60 ? `rgba(224,82,82,${a})` : score >= 40 ? `rgba(240,165,0,${a})` : `rgba(61,184,122,${a})`;
+    ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1; ctx.stroke();
+  });
+
+  [['Critical (80+)', '#b83232'], ['High (60–79)', '#e05252'], ['Moderate (40–59)', '#f0a500'], ['Low (<40)', '#3db87a']].forEach(([lbl, col], i) => {
+    ctx.beginPath(); ctx.arc(pad.l+8, pad.t+10+i*16, 5, 0, Math.PI*2);
+    ctx.fillStyle = col; ctx.fill();
+    ctx.fillStyle = 'rgba(90,112,144,0.9)'; ctx.font = '10px Epilogue, sans-serif'; ctx.textAlign = 'left';
+    ctx.fillText(lbl, pad.l+17, pad.t+14+i*16);
+  });
+}
+
+/* ═══════════════════════════════════════════════════════════
+   COMPARE TAB
+═══════════════════════════════════════════════════════════ */
+let compareRendered = false;
+function renderCompareTab() {
+  if (compareRendered) return;
+  compareRendered = true;
+  const opts = neighborhoods.map((n,i) => `<option value="${i}">${n.name}</option>`).join('');
+  document.getElementById('compare-left').innerHTML  = opts;
+  document.getElementById('compare-right').innerHTML = opts;
+  document.getElementById('compare-right').selectedIndex = 13; // Fairhill
+  renderCompare();
+}
+
+function renderCompare() {
+  const li = parseInt(document.getElementById('compare-left').value);
+  const ri = parseInt(document.getElementById('compare-right').value);
+  const L  = neighborhoods[li], R = neighborhoods[ri];
+  const metrics = [
+    { label: 'PV Score',           lv: pvScore(L), rv: pvScore(R), max: 100, unit: '',     higherBetter: false },
+    { label: 'Outage Index',       lv: L.outage,   rv: R.outage,   max: 100, unit: '',     higherBetter: false },
+    { label: 'Med. Dependency',    lv: L.medical,  rv: R.medical,  max: 100, unit: '',     higherBetter: false },
+    { label: 'Recovery Gap',       lv: L.recovery, rv: R.recovery, max: 100, unit: '',     higherBetter: false },
+    { label: 'Disability %',       lv: L.disability, rv: R.disability, max: 35, unit: '%', higherBetter: null  },
+    { label: 'Median Income',      lv: L.income,   rv: R.income,   max: 100, unit: 'K',    higherBetter: true  },
+  ];
+  document.getElementById('compare-body').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr auto 1fr;gap:12px;margin-bottom:8px;font-weight:700;font-size:0.83rem">
+      <div style="text-align:right;color:var(--amber)">${L.name}</div>
+      <div></div>
+      <div style="color:var(--blue)">${R.name}</div>
+    </div>
+    ${metrics.map(m => {
+      const lw = Math.max(0, Math.min(m.lv/m.max*100, 100));
+      const rw = Math.max(0, Math.min(m.rv/m.max*100, 100));
+      const lBetter = m.higherBetter===true ? m.lv>m.rv : m.higherBetter===false ? m.lv<m.rv : null;
+      return `<div class="compare-bar-row">
+        <div class="compare-bar-left">
+          <div class="cbar left" style="width:${lw}%;min-width:${m.lv>0?'30px':'0'}">
+            <span>${m.lv}${m.unit}${lBetter===true?' ✓':''}</span>
+          </div>
+        </div>
+        <div class="compare-bar-label">${m.label}</div>
+        <div class="compare-bar-right">
+          <div class="cbar right" style="width:${rw}%;min-width:${m.rv>0?'30px':'0'}">
+            <span>${m.rv}${m.unit}${lBetter===false?' ✓':''}</span>
+          </div>
+        </div>
+      </div>`;
+    }).join('')}`;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   POLICY TAB
+═══════════════════════════════════════════════════════════ */
+let policyRendered = false;
+function renderPolicyTab() {
+  if (policyRendered) return;
+  policyRendered = true;
+  const sel = document.getElementById('pol-neighborhood');
+  sel.innerHTML = [...neighborhoods].sort((a,b) => pvScore(b)-pvScore(a))
+    .map((n,i) => `<option value="${neighborhoods.indexOf(n)}">${n.name} (Score: ${pvScore(n)})</option>`)
+    .join('');
+}
+
+const budgets = ['$100K','$250K','$500K','$750K','$1M','$2M','$3M','$5M','$7.5M','$10M+'];
+function updateBudgetLabel(v) { document.getElementById('pol-budget-val').textContent = budgets[parseInt(v)-1]; }
+
+function generatePolicy() {
+  const ni     = parseInt(document.getElementById('pol-neighborhood').value);
+  const type   = document.getElementById('pol-type').value;
+  const bi     = parseInt(document.getElementById('pol-budget').value) - 1;
+  const budget = budgets[bi];
+  const n      = neighborhoods[ni];
+  const score  = pvScore(n);
+  const risk   = riskLevel(score);
+
+  const btn = document.getElementById('gen-btn');
+  document.getElementById('gen-btn-text').textContent = 'Generating…';
+  btn.disabled = true;
+
+  const budgetNum = ['100000','250000','500000','750000','1000000','2000000','3000000','5000000','7500000','10000000'][bi];
+  const bNum = parseInt(budgetNum);
+
+  const typeData = {
+    prenotify: {
+      title: 'Utility Pre-Notification Program',
+      icon: '📞',
+      context: `${n.name} carries a Power Vulnerability Score of ${score} — ${risk.label.toLowerCase()} risk — driven by an outage frequency index of ${n.outage} and medical device dependency index of ${n.medical}. When the grid fails here, it fails people on ventilators, oxygen concentrators, and powered wheelchairs. A utility pre-notification program would require PECO to contact registered households with medical equipment 4–24 hours before planned outages, and to establish priority restoration protocols for critical medical needs.`,
+      impact: `At ${budget}, this program can establish a dedicated medical needs registry, build the notification infrastructure, and operate for 3 years across ${n.name} and adjacent high-vulnerability neighborhoods — reaching an estimated ${Math.round(bNum/180)} registered households.`,
+      equity: `${n.disability}% of ${n.name} residents are Disabled, against a median income of $${n.income}K. These are not households that can absorb an extended outage. Pennsylvania Act 55 creates pathways for medical baseline protections — this program leverages that framework and should be co-designed with Disability services organizations.`,
+      next: ['File petition with Pennsylvania PUC', 'Partner with PA Office of Consumer Advocate', 'Engage PECO Disability Advisory Community', 'Register with Philadelphia Office of Emergency Management']
+    },
+    backup: {
+      title: 'Community Backup Power Hubs',
+      icon: '🔋',
+      context: `${n.name}'s combination of frequent outages (index: ${n.outage}) and high medical device dependency (index: ${n.medical}) creates an acute gap that individual households cannot fill alone. Battery storage is expensive; generators require maintenance and fuel. Community backup power hubs — solar-charged battery arrays at libraries, rec centers, and community buildings — provide shared, accessible emergency power for residents with critical medical needs.`,
+      impact: `${budget} funds ${Math.max(1, Math.round(bNum/350000))} backup power hub${bNum/350000 > 1 ? 's' : ''} with approximately 50kWh capacity each, sufficient to power 30–40 critical medical devices for up to 72 hours per outage event — the critical survival window.`,
+      equity: `All hubs must be ADA-accessible, staffed during declared emergencies, and located within 0.5 miles of highest-density medical-dependent populations. Partnering with existing trusted community anchors — not building new institutions — maximizes reach in ${n.name}.`,
+      next: ['Site assessment at rec centers and libraries', 'Apply to DOE Battery Storage for Disadvantaged Communities grant', 'Partner with local Disability services agencies', 'File for FEMA BRIC funding']
+    },
+    registry: {
+      title: 'Medical Needs Registry',
+      icon: '📋',
+      context: `Utilities and emergency managers cannot prioritize restoration, pre-notification, or evacuation support for residents with medical needs if they don't know who those residents are. ${n.name}'s disability prevalence of ${n.disability}% suggests hundreds of residents may have power-dependent medical equipment — but no systematic registry exists at the neighborhood level. A voluntary Medical Needs Registry fills this gap.`,
+      impact: `At ${budget}, a registry program can conduct outreach, build the enrollment platform, train community health workers, and enroll an estimated ${Math.round(bNum/120)} households over 18 months in ${n.name} and adjacent high-risk neighborhoods.`,
+      equity: `The registry must be multilingual, accessible in-person and digitally, and explicitly not shared with immigration enforcement — a prerequisite for community trust in neighborhoods like ${n.name} (${n.pctNonWhite}% non-white). Privacy protections must be built in from day one, not added later.`,
+      next: ['Draft ordinance with City Council sponsor', 'Partner with Philadelphia Corporation for Aging', 'Engage community health workers and home care agencies', 'Model on Seattle and NYC precedents']
+    },
+    evacuation: {
+      title: 'Accessible Evacuation Planning',
+      icon: '♿',
+      context: `Standard evacuation plans assume people can drive or walk. In ${n.name}, ${n.disability}% of residents are Disabled — many dependent on SEPTA, on powered wheelchairs, or on home health aides who may not be present during an emergency. An accessible evacuation plan maps these households, identifies transit-accessible shelter routes, and pre-positions paratransit resources for declared emergencies.`,
+      impact: `${budget} funds a full accessibility audit of ${n.name}'s evacuation infrastructure, development of a Disabled-led emergency response protocol, and 3-year coordination between OEM, SEPTA, and disability services agencies. Estimated reach: ${Math.round(bNum/200)} households enrolled in the accessible evacuation registry.`,
+      equity: `Disabled people were 36% of Hurricane Katrina deaths and face 2–4× higher mortality in climate disasters generally. This is not an edge case. Co-designing this plan with Disabled residents of ${n.name} — not just for them — is the only way it works.`,
+      next: ['Convene Disabled residents of neighborhood', 'Audit SEPTA paratransit capacity for emergency scenarios', 'Draft MOU with home health agencies', 'Submit to FEMA Hazard Mitigation Grant Program']
+    },
+    resilience: {
+      title: 'Neighborhood Resilience Center',
+      icon: '🏛️',
+      context: `${n.name}'s Power Vulnerability Score of ${score} reflects compound, overlapping risks that no single intervention can address. A Neighborhood Resilience Center — a permanently staffed, community-rooted hub with backup power, medical device charging, cooling, warming, and emergency coordination capacity — addresses the full stack. For the ${n.disability}% of residents who are Disabled, it provides a reliable anchor when systems fail.`,
+      impact: `${budget} can renovate and equip one existing community building as a resilience center with 100kWh backup power, medical-grade charging stations for 20+ devices, accessible design, and 12-month operating support. Estimated annual reach: ${Math.round(bNum/40)} residents served during emergency events.`,
+      equity: `Resilience centers only work if the community trusts them and can reach them. ADA accessibility, multilingual staffing, and explicit commitment to non-cooperation with immigration enforcement are baseline requirements. The center should be governed by a community board with meaningful Disabled representation.`,
+      next: ['Identify existing community anchor buildings', 'Apply to EPA EJ Collaborative Problem-Solving grant', 'Partner with Disability Pride PA and local disability organizations', 'Engage Philadelphia OHCD for capital support']
+    }
+  };
+
+  const data = typeData[type];
+  setTimeout(() => {
+    document.getElementById('policy-output-wrap').innerHTML = `
+      <div class="policy-output">
+        <h3>${data.icon} ${data.title} — ${n.name}</h3>
+        <div class="policy-section">
+          <div class="policy-section-title">Context & Rationale</div>
+          <p>${data.context}</p>
+        </div>
+        <div class="policy-section">
+          <div class="policy-section-title">Impact at ${budget}</div>
+          <p>${data.impact}</p>
+        </div>
+        <div class="policy-section">
+          <div class="policy-section-title">Equity & Disability Justice Framing</div>
+          <p>${data.equity}</p>
+        </div>
+        <div class="policy-section">
+          <div class="policy-section-title">Immediate Next Steps</div>
+          <p>${data.next.map((s,i) => `${i+1}. ${s}`).join('  ·  ')}</p>
+        </div>
+        <div class="policy-actions">
+          <button class="policy-action-btn" onclick="copyPolicyText()">📋 Copy for Testimony</button>
+          <button class="policy-action-btn" onclick="window.print()">🖨️ Print / Export</button>
+        </div>
+      </div>`;
+    document.getElementById('gen-btn-text').textContent = 'Generate Recommendation';
+    btn.disabled = false;
+  }, 800);
+}
+
+function copyPolicyText() {
+  const txt = document.getElementById('policy-output-wrap')?.innerText || '';
+  navigator.clipboard?.writeText(txt).then(() => alert('Policy text copied!'));
+}
+
+/* ═══════════════════════════════════════════════════════════
+   MEDICAL DEVICES TAB
+═══════════════════════════════════════════════════════════ */
+let devicesRendered = false;
+function renderDevicesTab() {
+  if (devicesRendered) return;
+  devicesRendered = true;
+
+  const devices = [
+    { icon: '🫁', title: 'Ventilators & BiPAP/CPAP', risk: 'Critical', color: '#b83232', text: 'Mechanical ventilation cannot be interrupted. Even brief outages are life-threatening. Battery backup on most home ventilators lasts only 4–8 hours.' },
+    { icon: '💨', title: 'Oxygen Concentrators', risk: 'Critical', color: '#b83232', text: 'Home oxygen concentrators require continuous power. Backup cylinders provide limited time — typically 4–6 hours. High-frequency use is common in elderly Disabled populations.' },
+    { icon: '🦽', title: 'Power Wheelchairs', risk: 'High', color: '#e05252', text: 'Power wheelchair users lose mobility and independence during outages. Without charging access, they may become completely homebound — unable to reach cooling centers or evacuation routes.' },
+    { icon: '❄️', title: 'Insulin & Temperature-Sensitive Medications', risk: 'High', color: '#e05252', text: 'Insulin and many biologic medications require refrigeration. A 4-hour outage in summer can render a month\'s supply unusable — a serious health and financial crisis for low-income Disabled people.' },
+    { icon: '💉', title: 'Infusion Pumps & Home Dialysis', risk: 'Critical', color: '#b83232', text: 'Home dialysis machines and infusion pumps require continuous power. Missed dialysis sessions can be fatal within days. These residents must be first on utility restoration priority lists.' },
+    { icon: '🧠', title: 'Cognitive & Sensory Devices', risk: 'Moderate', color: '#f0a500', text: 'AAC devices, cochlear implants, and hearing aids require charging. For Autistic people and those with communication disabilities, losing these devices during an emergency creates profound isolation and risk.' },
+  ];
+
+  document.getElementById('device-why').innerHTML = devices.map(d => `
+    <div class="device-card">
+      <span class="d-icon" aria-hidden="true">${d.icon}</span>
+      <h4>${d.title}</h4>
+      <p>${d.text}</p>
+      <span class="risk-pill" style="background:${d.color}18;color:${d.color}">${d.risk === 'Critical' ? '🔴' : d.risk === 'High' ? '🟠' : '🟡'} ${d.risk}</span>
+    </div>`).join('');
+
+  drawDeviceChart();
+
+  // Compound risk bars
+  const sorted = [...neighborhoods].sort((a,b) => {
+    const ra = a.outage*0.35 + a.medical*0.35 + a.recovery*0.30;
+    const rb = b.outage*0.35 + b.medical*0.35 + b.recovery*0.30;
+    return rb - ra;
+  }).slice(0,16);
+
+  const riskBars = document.getElementById('device-risk-bars');
+  riskBars.innerHTML = sorted.map(n => {
+    const score = pvScore(n);
+    return `<div class="bar-row">
+      <div class="bar-name">${n.name}<br><span style="font-size:0.62rem;font-weight:400;color:var(--muted)">${n.disability}% Disabled · Med ${n.medical}/100</span></div>
+      <div class="bar-track">
+        <div class="bar-fill" data-w="${score}" style="width:0%;background:${riskColor(score)}">
+          <span class="bar-val">Score: ${score}/100</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  setTimeout(() => { riskBars.querySelectorAll('.bar-fill').forEach(b => b.style.width = b.dataset.w + '%'); }, 200);
+}
+
+function drawDeviceChart() {
+  const canvas = document.getElementById('device-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.offsetWidth || 400, H = canvas.offsetHeight || 320;
+  canvas.width = W; canvas.height = H;
+  const pad = { t: 20, r: 20, b: 46, l: 55 };
+  const pW = W-pad.l-pad.r, pH = H-pad.t-pad.b;
+
+  ctx.strokeStyle = 'rgba(42,52,68,0.8)'; ctx.lineWidth = 1;
+  for (let i = 0; i <= 5; i++) {
+    const x = pad.l+(i/5)*pW, y = pad.t+(i/5)*pH;
+    ctx.beginPath(); ctx.moveTo(x,pad.t); ctx.lineTo(x,pad.t+pH); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+pW,y); ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(90,112,144,0.7)'; ctx.font = '10px DM Mono, monospace'; ctx.textAlign = 'center';
+  for (let i = 0; i <= 5; i++) ctx.fillText(`${i*20}`, pad.l+(i/5)*pW, H-10);
+  ctx.save(); ctx.translate(16,pad.t+pH/2); ctx.rotate(-Math.PI/2);
+  ctx.fillText('Med. Dependency Index', 0, 0); ctx.restore();
+  ctx.fillText('Outage Frequency Index', pad.l+pW/2, H-28);
+
+  // High-risk zone
+  ctx.strokeStyle = 'rgba(184,50,50,0.2)'; ctx.lineWidth = 1.5; ctx.setLineDash([4,4]);
+  ctx.strokeRect(pad.l+pW*0.6, pad.t, pW*0.4, pH*0.55);
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(184,50,50,0.45)'; ctx.font = 'bold 9px Epilogue, sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('Critical Zone', pad.l+pW*0.8, pad.t+12);
+
+  neighborhoods.forEach(n => {
+    const x = pad.l + (n.outage/100)*pW;
+    const y = pad.t + pH - (n.medical/100)*pH;
+    const r = 4 + (n.disability/35)*9;
+    const score = pvScore(n);
+    const a = 0.25 + Math.min(score/100, 0.65);
+    ctx.beginPath(); ctx.arc(x, y, Math.max(r,4), 0, Math.PI*2);
+    ctx.fillStyle = score>=80 ? `rgba(184,50,50,${a})` : score>=60 ? `rgba(224,82,82,${a})` : score>=40 ? `rgba(240,165,0,${a})` : `rgba(61,184,122,${a})`;
+    ctx.fill(); ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1; ctx.stroke();
+
+    if (n.outage > 75 && n.medical > 70) {
+      ctx.fillStyle = 'rgba(232,240,248,0.75)'; ctx.font = 'bold 8px Epilogue, sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(n.name.split(' ')[0], x, y - r - 3);
+    }
+  });
+}
+
+/* ─── UTILITY ─────────────────────────────────────────────── */
+function copyData() {
+  const rows = neighborhoods.map(n =>
+    [n.name, n.district, pvScore(n), n.outage, n.medical, n.recovery, n.climate, n.income, n.disability].join('\t')
+  );
+  navigator.clipboard?.writeText(
+    'Neighborhood\tDistrict\tPV_Score\tOutage\tMedical\tRecovery\tClimate\tIncome_K\tDisability_pct\n' + rows.join('\n')
+  ).then(() => alert('Data copied as TSV — paste into Excel or Google Sheets.'));
+}
+
+/* ─── INIT ────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', () => {
+  buildGrid();
+  const worstIdx = neighborhoods.reduce((mi,n,i,a) => pvScore(n) > pvScore(a[mi]) ? i : mi, 0);
+  selectNeighborhood(worstIdx);
+});
+
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (document.getElementById('tab-equity').classList.contains('active'))  drawScatter();
+    if (document.getElementById('tab-devices').classList.contains('active')) drawDeviceChart();
+  }, 200);
+});
+</script>
+</body>
+</html>
