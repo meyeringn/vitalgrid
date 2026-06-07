@@ -28,5 +28,5 @@ lights go out.
 ## Part of the Vibe Coding for Climate Action Portfolio
 - [CanopyWatch](https://meyeringn.github.io/canopy-watch) — Urban tree canopy equity
 - [VitalGrid](https://meyeringn.github.io/vitalgrid) — Power outage vulnerability
-- Transit Carbon Calculator
-- FloodRisk
+- [Transit Carbon Calculator](https://meyeringn.github.io/transit-carbon-calculator/) - Carbon savings data for your commute
+- [FloodRisk](https://meyeringn.github.io/floodrisk-philly/) - Plain language flood risk lookup 
